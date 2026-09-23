@@ -372,7 +372,7 @@ variable "monitoring_interval" {
 }
 
 variable "create_monitoring_role" {
-  description = "Whether this module creates the IAM role used for Enhanced Monitoring. Only used when enable_enhanced_monitoring is true and monitoring_role_arn is null."
+  description = "Whether this module creates the IAM role used for Enhanced Monitoring. Only used when monitoring_role_arn is null and Enhanced Monitoring is enabled on the primary (enable_enhanced_monitoring) or on any entry in read_replicas."
   type        = bool
   default     = true
 }

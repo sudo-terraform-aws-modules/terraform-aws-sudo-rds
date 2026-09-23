@@ -44,7 +44,7 @@ See `examples/minimal` for the smallest working setup and `examples/complete` fo
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 6.0.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.66.0 |
 
 ## Modules
 
@@ -85,7 +85,7 @@ No modules.
 | <a name="input_create_db_option_group"></a> [create\_db\_option\_group](#input\_create\_db\_option\_group) | Whether this module creates a DB option group. When false, option\_group\_name may reference an existing one. Not all engines support option groups (e.g. Postgres does not). | `bool` | `false` | no |
 | <a name="input_create_db_parameter_group"></a> [create\_db\_parameter\_group](#input\_create\_db\_parameter\_group) | Whether this module creates a DB parameter group. When false, parameter\_group\_name may reference an existing one. | `bool` | `false` | no |
 | <a name="input_create_db_subnet_group"></a> [create\_db\_subnet\_group](#input\_create\_db\_subnet\_group) | Whether this module creates a DB subnet group. When false, db\_subnet\_group\_name must reference an existing one. | `bool` | `true` | no |
-| <a name="input_create_monitoring_role"></a> [create\_monitoring\_role](#input\_create\_monitoring\_role) | Whether this module creates the IAM role used for Enhanced Monitoring. Only used when enable\_enhanced\_monitoring is true and monitoring\_role\_arn is null. | `bool` | `true` | no |
+| <a name="input_create_monitoring_role"></a> [create\_monitoring\_role](#input\_create\_monitoring\_role) | Whether this module creates the IAM role used for Enhanced Monitoring. Only used when monitoring\_role\_arn is null and Enhanced Monitoring is enabled on the primary (enable\_enhanced\_monitoring) or on any entry in read\_replicas. | `bool` | `true` | no |
 | <a name="input_create_security_group"></a> [create\_security\_group](#input\_create\_security\_group) | Whether this module creates a security group for the DB instance. | `bool` | `false` | no |
 | <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Name of the initial database to create. Null skips creating an initial database. | `string` | `null` | no |
 | <a name="input_db_subnet_group_name"></a> [db\_subnet\_group\_name](#input\_db\_subnet\_group\_name) | Name of an existing DB subnet group to use when create\_db\_subnet\_group is false. | `string` | `null` | no |

@@ -5,7 +5,20 @@ locals {
   create_security_group  = var.create_security_group
   create_parameter_group = var.create_db_parameter_group
   create_option_group    = var.create_db_option_group
-  create_monitoring_role = var.enable_enhanced_monitoring && var.monitoring_role_arn == null && var.create_monitoring_role
+
+  # A read replica may enable enhanced monitoring independently of the primary
+  # (via read_replicas[*].monitoring_interval), so the shared monitoring role must
+  # be created/resolved whenever ANY instance - primary or replica - needs one.
+  read_replica_monitoring_intervals = {
+    for k, v in var.read_replicas : k => coalesce(v.monitoring_interval, var.enable_enhanced_monitoring ? var.monitoring_interval : 0)
+  }
+  any_enhanced_monitoring_enabled = var.enable_enhanced_monitoring || anytrue([for interval in local.read_replica_monitoring_intervals : interval > 0])
+  create_monitoring_role          = local.any_enhanced_monitoring_enabled && var.monitoring_role_arn == null && var.create_monitoring_role
+
+  # IAM role names are capped at 64 characters, and name_prefix reserves ~26 of those
+  # for Terraform's generated suffix, leaving a ~38 character budget. Truncate long
+  # identifiers so the prefix always fits regardless of var.identifier's length.
+  monitoring_role_name_prefix = "${substr(var.identifier, 0, min(length(var.identifier), 29))}-rds-mon-"
 
   # AWS assigns the engine's default port automatically when the instance's `port`
   # argument is omitted, but the security group rules below need a concrete value
@@ -32,7 +45,7 @@ locals {
   )
   parameter_group_name = local.create_parameter_group ? aws_db_parameter_group.this[0].name : var.parameter_group_name
   option_group_name    = local.create_option_group ? aws_db_option_group.this[0].name : var.option_group_name
-  monitoring_role_arn = var.enable_enhanced_monitoring ? (
+  monitoring_role_arn = local.any_enhanced_monitoring_enabled ? (
     var.monitoring_role_arn != null ? var.monitoring_role_arn : try(aws_iam_role.enhanced_monitoring[0].arn, null)
   ) : null
 
@@ -203,7 +216,7 @@ data "aws_iam_policy_document" "monitoring_assume" {
 resource "aws_iam_role" "enhanced_monitoring" {
   count = local.create_monitoring_role ? 1 : 0
 
-  name_prefix        = "${var.identifier}-rds-monitoring-"
+  name_prefix        = local.monitoring_role_name_prefix
   assume_role_policy = data.aws_iam_policy_document.monitoring_assume[0].json
 
   tags = local.tags
@@ -317,11 +330,18 @@ resource "aws_db_instance" "read_replica" {
   copy_tags_to_snapshot      = var.copy_tags_to_snapshot
   apply_immediately          = var.apply_immediately
 
-  monitoring_interval = coalesce(each.value.monitoring_interval, var.enable_enhanced_monitoring ? var.monitoring_interval : 0)
+  monitoring_interval = local.read_replica_monitoring_intervals[each.key]
   monitoring_role_arn = local.monitoring_role_arn
 
   performance_insights_enabled    = each.value.performance_insights_enabled
   performance_insights_kms_key_id = each.value.performance_insights_enabled ? var.performance_insights_kms_key_id : null
 
   tags = merge(local.tags, each.value.tags)
+
+  lifecycle {
+    precondition {
+      condition     = local.read_replica_monitoring_intervals[each.key] == 0 || local.monitoring_role_arn != null
+      error_message = "This read replica resolves to a monitoring_interval greater than 0, but no monitoring role ARN is available. Set var.monitoring_role_arn, or leave var.create_monitoring_role at its default (true) so this module can create one."
+    }
+  }
 }
