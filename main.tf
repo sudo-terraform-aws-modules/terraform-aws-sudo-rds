@@ -15,6 +15,10 @@ locals {
   any_enhanced_monitoring_enabled = var.enable_enhanced_monitoring || anytrue([for interval in local.read_replica_monitoring_intervals : interval > 0])
   create_monitoring_role          = local.any_enhanced_monitoring_enabled && var.monitoring_role_arn == null && var.create_monitoring_role
 
+  read_replica_skip_final_snapshot = {
+    for k, v in var.read_replicas : k => coalesce(v.skip_final_snapshot, var.skip_final_snapshot)
+  }
+
   # IAM role names are capped at 64 characters, and name_prefix reserves ~26 of those
   # for Terraform's generated suffix, leaving a ~38 character budget. Truncate long
   # identifiers so the prefix always fits regardless of var.identifier's length.
@@ -305,6 +309,11 @@ resource "aws_db_instance" "this" {
       condition     = !var.enable_enhanced_monitoring || local.monitoring_role_arn != null
       error_message = "When enable_enhanced_monitoring is true and create_monitoring_role is false, var.monitoring_role_arn must be set to an existing IAM role ARN."
     }
+
+    precondition {
+      condition     = !(var.manage_master_user_password && length(var.read_replicas) > 0)
+      error_message = "AWS does not currently support creating read replicas from a source instance where manage_master_user_password is true (confirmed on both postgres and mysql; likely universal across engines). Set var.manage_master_user_password = false and supply var.password, or remove var.read_replicas."
+    }
   }
 }
 
@@ -326,7 +335,8 @@ resource "aws_db_instance" "read_replica" {
 
   auto_minor_version_upgrade = each.value.auto_minor_version_upgrade
   deletion_protection        = var.deletion_protection
-  skip_final_snapshot        = var.skip_final_snapshot
+  skip_final_snapshot        = local.read_replica_skip_final_snapshot[each.key]
+  final_snapshot_identifier  = local.read_replica_skip_final_snapshot[each.key] ? null : "${var.identifier}-${each.key}-${var.final_snapshot_identifier_prefix}"
   copy_tags_to_snapshot      = var.copy_tags_to_snapshot
   apply_immediately          = var.apply_immediately
 

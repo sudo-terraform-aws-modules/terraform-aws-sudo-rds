@@ -421,7 +421,7 @@ variable "iam_database_authentication_enabled" {
 ### Read replicas ###
 
 variable "read_replicas" {
-  description = "Map of read replicas to create, keyed by a caller-chosen suffix appended to var.identifier. Fields left null fall back to the primary instance's corresponding setting where applicable."
+  description = "Map of read replicas to create, keyed by a caller-chosen suffix appended to var.identifier. Fields left null fall back to the primary instance's corresponding setting where applicable (e.g. skip_final_snapshot defaults to var.skip_final_snapshot when unset)."
   type = map(object({
     instance_class               = optional(string)
     availability_zone            = optional(string)
@@ -432,6 +432,7 @@ variable "read_replicas" {
     auto_minor_version_upgrade   = optional(bool, true)
     monitoring_interval          = optional(number)
     performance_insights_enabled = optional(bool, false)
+    skip_final_snapshot          = optional(bool)
     tags                         = optional(map(string), {})
   }))
   default = {}

@@ -1,6 +1,13 @@
 # Complete usage: MySQL with a module-managed security group, custom parameter
 # and option groups, Enhanced Monitoring, Performance Insights, CloudWatch log
 # exports, and one read replica.
+#
+# Uses a Terraform-generated password (manage_master_user_password = false)
+# rather than the AWS-managed master password, because AWS does not support
+# creating read replicas from a source instance with an AWS-managed master
+# password. The generated value lives in Terraform state - for a real
+# deployment without read replicas, prefer manage_master_user_password = true
+# (the module's default) so AWS manages the secret in Secrets Manager instead.
 
 data "aws_vpc" "default" {
   default = true
@@ -13,12 +20,18 @@ data "aws_subnets" "default" {
   }
 }
 
+resource "random_password" "master" {
+  length           = 20
+  special          = true
+  override_special = "!#$%^&*()-_=+[]{}<>?"
+}
+
 module "rds" {
   source = "../../"
 
   identifier     = "example-complete"
   engine         = "mysql"
-  engine_version = "8.0"
+  engine_version = "8.4"
   instance_class = "db.t4g.medium"
 
   allocated_storage     = 50
@@ -26,7 +39,8 @@ module "rds" {
   storage_type          = "gp3"
 
   username                    = "app_admin"
-  manage_master_user_password = true
+  manage_master_user_password = false
+  password                    = random_password.master.result
 
   subnet_ids                         = data.aws_subnets.default.ids
   create_security_group              = true
@@ -35,10 +49,18 @@ module "rds" {
 
   multi_az                = true
   backup_retention_period = 14
-  deletion_protection     = true
+  deletion_protection     = false
+
+  # This example uses a custom option group. AWS pins an option group to any
+  # snapshot taken with it and refuses to delete the option group while that
+  # snapshot exists, so a final snapshot here would block `terraform destroy`
+  # from removing aws_db_option_group.this until the snapshot is deleted by
+  # hand. Skipped for a disposable demo environment; a real deployment should
+  # generally keep the final snapshot (the module's default).
+  skip_final_snapshot = true
 
   create_db_parameter_group = true
-  parameter_group_family    = "mysql8.0"
+  parameter_group_family    = "mysql8.4"
   parameters = [
     {
       name  = "max_connections"
@@ -47,7 +69,7 @@ module "rds" {
   ]
 
   create_db_option_group = true
-  major_engine_version   = "8.0"
+  major_engine_version   = "8.4"
   options = [
     {
       option_name = "MARIADB_AUDIT_PLUGIN"
@@ -64,7 +86,8 @@ module "rds" {
 
   read_replicas = {
     replica1 = {
-      instance_class = "db.t4g.medium"
+      instance_class      = "db.t4g.medium"
+      skip_final_snapshot = true
     }
   }
 
