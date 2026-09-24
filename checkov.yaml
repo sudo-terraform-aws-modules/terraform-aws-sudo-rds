@@ -21,3 +21,9 @@ skip-check:
   # var.read_replicas' optional() default in variables.tf); checkov can't resolve the
   # value through the for_each/each.value indirection and flags it conservatively.
   - CKV_AWS_226
+  # False positive: aws_security_group.this IS attached - to aws_db_instance.this and
+  # aws_db_instance.read_replica, via local.vpc_security_group_ids. Checkov's graph
+  # check can't trace the security group's id through that local's concat()/conditional
+  # (it's merged with var.vpc_security_group_ids and gated on create_security_group), so
+  # it reports the security group as unattached even though it plainly is.
+  - CKV2_AWS_5
